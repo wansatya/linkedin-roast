@@ -153,8 +153,23 @@ function setupEventListeners() {
 
   // Roast button
   roastBtn.addEventListener('click', async () => {
+    // 1. Check if we have any data at all
     if (!currentProfile) {
       alert('No profile data detected yet. Please wait a moment or try refreshing.');
+      return;
+    }
+
+    // 2. Check if data is "thin" (missing name or headline)
+    const isThin = !currentProfile.name || !currentProfile.headline;
+    if (isThin) {
+      console.log('Profile data looks thin, attempting one-time re-fetch...');
+      updateStatus('ready', 'Refreshing data for better roast...');
+      await checkCurrentPage(); // This will update currentProfile
+    }
+
+    // Final check after potential refresh
+    if (!currentProfile?.name) {
+      alert('Could not detect profile name. Please make sure you are on a LinkedIn profile page and wait for it to load.');
       return;
     }
 
@@ -466,38 +481,45 @@ function handleMessage(message) {
 
 // Check current page
 async function checkCurrentPage() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return new Promise(async (resolve) => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    // Shared permissive regex for LinkedIn profiles
-    const profileRegex = /^https:\/\/www\.linkedin\.com\/in\/[^\/\?#]+[\/\?#]?.*$/;
+      // Shared permissive regex for LinkedIn profiles
+      const profileRegex = /^https:\/\/www\.linkedin\.com\/in\/[^\/\?#]+[\/\?#]?.*$/;
 
-    if (tab?.url && tab.url.match(profileRegex)) {
-      updateStatus('ready', 'Fetching profile data...');
+      if (tab?.url && tab.url.match(profileRegex)) {
+        updateStatus('ready', 'Fetching profile data...');
 
-      // Add a small delay to ensure content script is ready
-      setTimeout(() => {
-        // Request profile data
-        chrome.runtime.sendMessage({ type: 'GET_PROFILE_DATA' }, (response) => {
-          console.log('GET_PROFILE_DATA response:', response);
-          if (response?.data) {
-            handleProfileData(response.data, tab.url);
-          } else if (response?.error) {
-            console.error('Extraction error:', response.error);
-            updateStatus('error', response.error);
-          } else {
-            updateStatus('error', 'Profile data extraction failed');
-          }
-        });
-      }, 500);
-    } else {
-      updateStatus('idle', 'Navigate to a LinkedIn profile');
-      currentProfile = null;
-      profilePreview.style.display = 'none';
+        // Add a small delay to ensure content script is ready
+        setTimeout(() => {
+          // Request profile data
+          chrome.runtime.sendMessage({ type: 'GET_PROFILE_DATA' }, (response) => {
+            console.log('GET_PROFILE_DATA response:', response);
+            if (response?.data) {
+              handleProfileData(response.data, tab.url);
+              resolve(true);
+            } else if (response?.error) {
+              console.error('Extraction error:', response.error);
+              updateStatus('error', response.error);
+              resolve(false);
+            } else {
+              updateStatus('error', 'Profile data extraction failed');
+              resolve(false);
+            }
+          });
+        }, 500);
+      } else {
+        updateStatus('idle', 'Navigate to a LinkedIn profile');
+        currentProfile = null;
+        profilePreview.style.display = 'none';
+        resolve(false);
+      }
+    } catch (error) {
+      console.error('Error checking current page:', error);
+      resolve(false);
     }
-  } catch (error) {
-    console.error('Error checking current page:', error);
-  }
+  });
 }
 
 // Handle profile data

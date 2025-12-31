@@ -19,8 +19,8 @@ if (window.hasLinkedInRoasterInjected) {
   }
 
   // Function to extract profile data from LinkedIn page
-  function extractProfileData() {
-    console.log('Starting deep extraction...');
+  async function extractProfileData(retryCount = 0) {
+    console.log(`Starting deep extraction (attempt ${retryCount + 1})...`);
 
     const profileData = {
       url: window.location.href,
@@ -29,16 +29,12 @@ if (window.hasLinkedInRoasterInjected) {
     };
 
     try {
-      // 🎯 Strategy 1: Try to find structured ld+json data first
-      // This is often more reliable than scraping the DOM
+      // 1. Initial structured data check
       const ldJsonScripts = document.querySelectorAll('script[type="application/ld+json"]');
       for (const script of ldJsonScripts) {
         try {
           const json = JSON.parse(script.textContent);
-
-          // Find the Person object (sometimes it's a single object, sometimes inside an @graph)
           const person = json['@type'] === 'Person' ? json : (json['@graph']?.find(item => item['@type'] === 'Person'));
-
           if (person) {
             if (person.name) profileData.name = person.name;
             if (person.jobTitle) profileData.headline = person.jobTitle;
@@ -46,8 +42,6 @@ if (window.hasLinkedInRoasterInjected) {
               profileData.about = person.description;
               profileData.fromLdJson = true;
             }
-            console.log('Got hints from structured data');
-            // Don't break here, let DOM scraping fill in the gaps or overwrite better data
           }
         } catch (e) { /* skip */ }
       }
@@ -56,59 +50,43 @@ if (window.hasLinkedInRoasterInjected) {
 
       // 1. Name Focus
       if (!profileData.name) {
-        const nameSelectors = [
-          'h1.text-heading-xlarge',
-          'h1.inline.t-24',
-          'main h1',
-          '.pv-top-card-section__name',
-          'title' // Final fallback
-        ];
+        const nameSelectors = ['h1.text-heading-xlarge', 'h1.inline.t-24', 'main h1', '.pv-top-card-section__name', 'title'];
         for (const selector of nameSelectors) {
           const el = document.querySelector(selector);
           if (el) {
             let name = el.textContent.split('|')[0].trim();
-            if (name !== 'LinkedIn') {
-              profileData.name = name;
-              break;
-            }
+            if (name !== 'LinkedIn') { profileData.name = name; break; }
           }
         }
       }
 
       // 2. Headline Focus
       if (!profileData.headline) {
-        const headlineSelectors = [
-          '.text-body-medium.break-words',
-          '.pv-top-card-section__headline',
-          'main h2',
-          '.mt1 .text-body-medium'
-        ];
+        const headlineSelectors = ['.text-body-medium.break-words', '.pv-top-card-section__headline', 'main h2', '.mt1 .text-body-medium'];
         for (const selector of headlineSelectors) {
           const el = document.querySelector(selector);
-          if (el && el.textContent.trim()) {
-            profileData.headline = el.textContent.trim();
-            break;
-          }
+          if (el && el.textContent.trim()) { profileData.headline = el.textContent.trim(); break; }
         }
       }
 
-      // 3. About Section Focus
+      // 3. About Section Focus (and Wait for expansion)
       if (!profileData.about) {
-        // Find the "See more" button specifically within the about section to avoid clicking everything
         const aboutSection = document.querySelector('#about')?.closest('section');
         if (aboutSection) {
           const seeMoreBtn = aboutSection.querySelector('button.inline-show-more-text__button');
-          if (seeMoreBtn) seeMoreBtn.click();
+          if (seeMoreBtn) {
+            seeMoreBtn.click();
+            // Wait a bit for expansion if it's the first time
+            if (retryCount === 0) await new Promise(r => setTimeout(r, 300));
+          }
         }
 
         const aboutSelectors = [
           '#about ~ .display-flex .inline-show-more-text span[aria-hidden="true"]',
           '#about + div + div .inline-show-more-text span[aria-hidden="true"]',
           '.pv-about-section .inline-show-more-text span[aria-hidden="true"]',
-          '#about-section ~ div .pv-about__summary-text span[aria-hidden="true"]',
           'section.pv-about-section .inline-show-more-text',
           '.pv-shared-text-with-see-more',
-          // Generic fallback: any section that contains the #about anchor
           'section:has(#about) .inline-show-more-text'
         ];
 
@@ -123,44 +101,23 @@ if (window.hasLinkedInRoasterInjected) {
         }
       }
 
-      // Fallback: If still not found, try searching by common "About" icons or ID-based proximity
-      if (!profileData.about) {
-        const aboutAnchor = document.getElementById('about');
-        if (aboutAnchor) {
-          const section = aboutAnchor.closest('section');
-          const textEl = section?.querySelector('.inline-show-more-text span[aria-hidden="true"]') ||
-            section?.querySelector('.inline-show-more-text') ||
-            section?.querySelector('.pv-shared-text-with-see-more');
-          if (textEl) profileData.about = cleanText(textEl.textContent);
-        }
-      }
-
       // 4. Experience Focus
       const experienceSection = document.querySelector('#experience');
       if (experienceSection) {
         const expContainer = experienceSection.closest('section');
-
-        // Expand all internal "See more" buttons within experience items
-        const internalSeeMore = expContainer.querySelectorAll('button.inline-show-more-text__button');
-        internalSeeMore.forEach(btn => btn.click());
+        // Expand internal "See more" buttons within experience
+        expContainer.querySelectorAll('button.inline-show-more-text__button').forEach(btn => btn.click());
 
         const items = expContainer.querySelectorAll('li.artdeco-list__item');
         profileData.experience = Array.from(items).slice(0, 8).map(item => {
-          // LinkedIn sometimes nests roles under one company. 
-          // We try to get the most relevant title/company info.
           const title = item.querySelector('.display-flex.align-items-center [aria-hidden="true"]')?.textContent || '';
           const company = item.querySelector('.t-14.t-normal [aria-hidden="true"]')?.textContent || '';
-          const duration = item.querySelector('.t-14.t-normal.t-black--light [aria-hidden="true"]')?.textContent || '';
-
-          // Improved description selector to get the full expanded text
           const descClean = item.querySelector('.inline-show-more-text span[aria-hidden="true"]') ||
             item.querySelector('.pvs-list__outer-container span[aria-hidden="true"]') ||
             item.querySelector('.pv-shared-text-with-see-more');
-
           return {
             title: cleanText(title),
             company: cleanText(company),
-            duration: cleanText(duration),
             description: cleanText(descClean?.textContent || '')
           };
         }).filter(exp => exp.title || exp.company);
@@ -176,10 +133,7 @@ if (window.hasLinkedInRoasterInjected) {
         profileData.education = Array.from(items).slice(0, 5).map(item => {
           const school = item.querySelector('.display-flex.align-items-center span[aria-hidden="true"]')?.textContent || '';
           const degree = item.querySelector('.t-14.t-normal span[aria-hidden="true"]')?.textContent || '';
-          return {
-            school: cleanText(school),
-            degree: cleanText(degree)
-          };
+          return { school: cleanText(school), degree: cleanText(degree) };
         }).filter(edu => edu.school);
       }
 
@@ -190,43 +144,27 @@ if (window.hasLinkedInRoasterInjected) {
         const skills = skillsContainer.querySelectorAll('div.display-flex.align-items-center span[aria-hidden="true"]');
         profileData.skills = Array.from(skills)
           .map(s => s.textContent.trim())
-          .filter(s => s && s.length > 2 && !s.includes('Skill')); // Filter out noise
+          .filter(s => s && s.length > 2 && !s.includes('Skill'));
       }
 
-      // 7. Visuals
+      // 7. Check if we need to retry (e.g., if core data is still missing)
+      const isMissingCoreData = !profileData.name || !profileData.headline;
+      if (isMissingCoreData && retryCount < 3) {
+        console.log('Core data missing, retrying in 1s...');
+        await new Promise(r => setTimeout(r, 1000));
+        return extractProfileData(retryCount + 1);
+      }
+
+      // Final metadata
       const pic = document.querySelector('img.pv-top-card-profile-picture__image, .pv-top-card-profile-picture img');
       profileData.hasProfilePicture = pic && !pic.src.includes('ghost-person');
-
-      const banner = document.querySelector('img.profile-background-image__image, .profile-background-image img');
-      profileData.hasCoverImage = banner && !banner.src.includes('default-background');
-
-      // 6. Connections & Followers
       const connEl = document.querySelector('.t-black--light .t-bold') || document.querySelector('li.text-body-small span.t-bold');
       profileData.connections = connEl ? connEl.textContent.trim() : 'Unknown';
 
-      // Completeness Check
-      let score = 0;
-      if (profileData.name) score += 10;
-      if (profileData.headline) score += 20;
-      if (profileData.about) score += 30;
-      if (profileData.experience?.length > 0) score += 20;
-      if (profileData.hasProfilePicture) score += 20;
-      profileData.completenessScore = score;
-
-      console.log('Extraction complete. Status:', {
-        name: !!profileData.name,
-        headline: !!profileData.headline,
-        about: !!profileData.about,
-        experience: profileData.experience?.length || 0,
-        education: profileData.education?.length || 0,
-        skills: profileData.skills?.length || 0,
-        hasPic: profileData.hasProfilePicture,
-        score: score
-      });
       return profileData;
 
     } catch (error) {
-      console.error('Deep extraction failed:', error);
+      console.error('Extraction failed:', error);
       return { ...profileData, error: error.message };
     }
   }
@@ -234,21 +172,23 @@ if (window.hasLinkedInRoasterInjected) {
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'EXTRACT_PROFILE') {
-      const data = extractProfileData();
-      sendResponse({ success: true, data });
+      extractProfileData().then(data => {
+        sendResponse({ success: true, data });
+      });
+      return true; // Keep channel open for async response
     }
     return true;
   });
 
   // Auto-extract and send profile data when page loads
   window.addEventListener('load', () => {
-    setTimeout(() => {
-      const data = extractProfileData();
+    setTimeout(async () => {
+      const data = await extractProfileData();
       chrome.runtime.sendMessage({
         type: 'PROFILE_DATA',
         data: data,
         url: window.location.href
       }).catch(() => { });
-    }, 3500); // 3.5s for deep load
+    }, 2000); // Start earlier but with retries
   });
 }
