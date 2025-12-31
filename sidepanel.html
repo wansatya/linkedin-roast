@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Profile Roaster</title>
+  <link rel="icon" type="image/png" href="icons/icon32.png">
+  <link rel="stylesheet" href="styles/sidepanel.css">
+</head>
+
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="logo">🔥 LinkedIn Roaster</h1>
+        <p class="tagline">Honest. Satirical. Constructive.</p>
+      </div>
+    </header>
+
+    <!-- Auth Section -->
+    <div id="auth-section" class="auth-section">
+      <div class="auth-card">
+        <div class="auth-icon">🔐</div>
+        <h2>Sign In to Get Started</h2>
+        <p>Authenticate with Google to roast LinkedIn profiles</p>
+        <button id="google-signin-btn" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"
+              fill="#4285F4" />
+            <path
+              d="M9.003 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.96v2.332C2.44 15.983 5.485 18 9.003 18z"
+              fill="#34A853" />
+            <path
+              d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.96H.957C.347 6.175 0 7.55 0 9.002c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+              fill="#FBBC05" />
+            <path
+              d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.426 0 9.003 0 5.485 0 2.44 2.017.96 4.958L3.967 7.29c.708-2.127 2.692-3.71 5.036-3.71z"
+              fill="#EA4335" />
+          </svg>
+          Sign in with Google
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content (hidden until authenticated) -->
+    <div id="main-content" class="main-content" style="display: none;">
+      <!-- Mode Navigation -->
+      <nav class="mode-nav">
+        <button id="nav-roast" class="nav-btn active">🔥 Roast</button>
+        <button id="nav-polish" class="nav-btn">✨ Polish</button>
+      </nav>
+
+      <!-- User Info -->
+      <div class="user-info">
+        <div class="user-avatar-container">
+          <div class="user-avatar" id="user-avatar"></div>
+          <span id="pro-badge" class="pro-badge" style="display: none;">PRO</span>
+        </div>
+        <div class="user-details">
+          <div class="name-row">
+            <h2 id="user-name">User Name</h2>
+            <button id="signout-btn" class="signout-btn" title="Sign Out">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+            </button>
+          </div>
+          <p id="user-email">user@example.com</p>
+        </div>
+        <div id="upgrade-cta" class="upgrade-cta" style="display: none;">
+          <p>🚀 <strong>Pro: IDR 20k/mo</strong> - <span id="usage-count">8/8</span> roasts left today!</p>
+          <button id="upgrade-btn" class="btn btn-pro">Upgrade Now</button>
+        </div>
+      </div>
+
+      <!-- Status Section -->
+      <div class="status-section">
+        <div id="status-indicator" class="status-indicator status-idle">
+          <span class="status-dot"></span>
+          <span id="status-text">Navigate to a LinkedIn profile</span>
+        </div>
+        <button id="refresh-btn" class="btn-icon" title="Refresh Profile Data">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Profile Preview -->
+      <div id="profile-preview" class="profile-preview" style="display: none;">
+        <h3>Profile Detected</h3>
+        <div class="profile-info">
+          <div class="profile-name" id="profile-name">-</div>
+          <div class="profile-headline" id="profile-headline">-</div>
+          <div class="profile-location" id="profile-location">-</div>
+        </div>
+        <button id="roast-btn" class="btn btn-roast">
+          🔥 Roast This Profile
+        </button>
+      </div>
+
+      <!-- Roast Result -->
+      <div id="roast-result" class="roast-result" style="display: none;">
+        <div class="roast-header">
+          <h3>🔥 The Roast</h3>
+          <div class="roast-meta">
+            <span id="roast-timestamp"></span>
+          </div>
+        </div>
+        <div class="roast-content" id="roast-content">
+          <!-- Roast will be inserted here -->
+        </div>
+        <div class="roast-actions">
+          <button id="copy-roast-btn" class="btn btn-primary">
+            📋 Copy Roast
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loading-state" class="loading-state" style="display: none;">
+        <div class="spinner"></div>
+        <p>Crafting your roast...</p>
+      </div>
+
+    </div>
+
+    <!-- Polish Dashboard -->
+    <div id="polish-dashboard" class="polish-dashboard" style="display: none;">
+      <div class="dashboard-header">
+        <h3>✨ Profile Surgeon</h3>
+        <p>Polishing your potential...</p>
+      </div>
+
+      <div id="polish-content" class="polish-content">
+        <!-- AI Improvements will be injected here -->
+        <div class="empty-polish">
+          <p>Click "Optimize Profile" to generate a polished masterpiece.</p>
+          <button id="optimize-btn" class="btn btn-primary">✨ Optimize Profile</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+  </div>
+
+  <script type="module" src="sidepanel.js"></script>
+</body>
+
+</html>

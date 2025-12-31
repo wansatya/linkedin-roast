@@ -1,0 +1,19 @@
+{
+    "name": "linkedin-roaster",
+    "version": "1.0.0",
+    "description": "Chrome extension to roast LinkedIn profiles with honest, satirical feedback",
+    "scripts": {
+        "build": "echo 'No build step required for this extension'",
+        "lint": "echo 'Add ESLint configuration if needed'"
+    },
+    "keywords": [
+        "chrome-extension",
+        "linkedin",
+        "profile-analysis",
+        "supabase"
+    ],
+    "author": "Wan Satya",
+    "license": "MIT",
+    "dependencies": {},
+    "devDependencies": {}
+}
